@@ -1,0 +1,29 @@
+# Docker Compose for ATS Streamlit app
+# - Builds image from Dockerfile in project root
+# - Exposes Streamlit on port 8501
+# - Loads environment variables from .env (copy from .env.example)
+
+version: "3.8"
+
+services:
+  ats-app:
+    build: .
+    image: ats-streamlit:latest
+    container_name: ats-streamlit
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    environment:
+      - STREAMLIT_SERVER_HEADLESS=true
+      - STREAMLIT_SERVER_ENABLE_CORS=false
+      - STREAMLIT_SERVER_RUN_ON_SAVE=false
+      # GOOGLE_API_KEY is read from the .env file (see .env.example)
+    volumes:
+      - ./:/app:delegated
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8501/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5

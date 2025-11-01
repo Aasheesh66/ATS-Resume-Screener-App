@@ -1,0 +1,32 @@
+# Cloud Build config to build the container and deploy to Cloud Run
+# Usage: Submit this build via Cloud Build or connect your repo to trigger on commits.
+# It builds an image named gcr.io/$PROJECT_ID/ats-streamlit:$SHORT_SHA, pushes it, then deploys to Cloud Run.
+
+substitutions:
+  _REGION: "us-central1"  # override with your region when triggering
+
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/ats-streamlit:$SHORT_SHA', '.']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/ats-streamlit:$SHORT_SHA']
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -e
+        # Deploy to Cloud Run (managed)
+        gcloud run deploy ats-streamlit \
+          --image gcr.io/$PROJECT_ID/ats-streamlit:$SHORT_SHA \
+          --region ${_REGION} \
+          --platform managed \
+          --allow-unauthenticated \
+          --set-env-vars=PORT=8080
+
+images:
+  - 'gcr.io/$PROJECT_ID/ats-streamlit:$SHORT_SHA'
+
+# Optionally configure timeouts, substitutions, and secret manager integration when running builds.
