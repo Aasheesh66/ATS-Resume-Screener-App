@@ -35,8 +35,15 @@ ENV STREAMLIT_SERVER_HEADLESS=true \
     STREAMLIT_SERVER_RUN_ON_SAVE=false \
     PORT=8080
 
+# Create a non-root user and set ownership of /app for improved security
+RUN adduser --disabled-password --gecos "" app \
+    && chown -R app:app /app
+
 # Expose the default Cloud Run port
 EXPOSE 8080
 
-# Use a shell form so the $PORT env var is expanded at runtime (Cloud Run sets PORT)
-CMD ["bash", "-lc", "streamlit run app.py --server.port ${PORT} --server.address 0.0.0.0"]
+# Switch to the non-root user for running the app
+USER app
+
+# Use sh -c so the $PORT env var is expanded at runtime (Cloud Run sets PORT)
+CMD ["sh", "-c", "streamlit run app.py --server.port ${PORT} --server.address 0.0.0.0"]

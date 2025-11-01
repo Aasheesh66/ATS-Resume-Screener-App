@@ -83,6 +83,7 @@ Secrets (Google API key)
 The app expects a Google API key to be available as `st.secrets.GOOGLE_API_KEY` in `app.py`. Recommended secure options:
 
 - Use Secret Manager (recommended):
+
  1. Create a secret in Secret Manager and grant Cloud Run's runtime service account access.
  2. Deploy Cloud Run and map the secret as an environment variable with `--update-secrets=GOOGLE_API_KEY=projects/$PROJECT_ID/secrets/YOUR_SECRET:latest`.
 
@@ -102,3 +103,50 @@ Notes
 - Cloud Run requires your app to bind to the `PORT` env var; the `Dockerfile` already uses `${PORT}` when starting Streamlit.
 - `poppler-utils` is installed in the image to support `pdf2image`.
 - If you want, I can add a Cloud Build trigger, Secret Manager automation, or a GitHub Actions workflow for CI/CD.
+
+Local development note (docker-compose)
+
+The `docker-compose.yml` no longer requires a `.env` file in the repository. For local testing you have two options:
+
+- Create a local `.env` (do NOT commit it):
+
+```powershell
+cp .env.example .env
+# edit .env locally and set GOOGLE_API_KEY
+```
+
+- Or set the environment variable in your shell before running docker-compose:
+
+```powershell
+$env:GOOGLE_API_KEY = "your_key_here"
+docker-compose up --build
+```
+
+Production secrets (recommended)
+
+Use Secret Manager in production and map the secret into Cloud Run as an env var during deployment:
+
+```powershell
+# Create the secret (one-time)
+echo -n "your_real_key_here" | gcloud secrets create ATS_GOOGLE_API_KEY --data-file=-
+
+# Grant access to the Cloud Run runtime service account (project number required)
+$PROJECT_ID = (gcloud config get-value project)
+$PROJECT_NUMBER = (gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
+gcloud secrets add-iam-policy-binding ATS_GOOGLE_API_KEY \
+  --member="serviceAccount:$PROJECT_NUMBER-compute@developer.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
+
+# Deploy and map the secret into the Cloud Run service
+gcloud run deploy ats-streamlit \
+  --image gcr.io/$PROJECT_ID/ats-streamlit:latest \
+  --region us-central1 \
+  --platform managed \
+  --allow-unauthenticated \
+  --update-secrets=GOOGLE_API_KEY=projects/$PROJECT_ID/secrets/ATS_GOOGLE_API_KEY:latest \
+  --set-env-vars=PORT=8080
+```
+
+Cloud Build
+
+The included `cloudbuild.yaml` supports an optional substitution `_SECRET_NAME`. If you configure a Cloud Build trigger, set `_SECRET_NAME` to the Secret Manager secret name (e.g. `ATS_GOOGLE_API_KEY`) so the built image is deployed with the secret mapped into Cloud Run.

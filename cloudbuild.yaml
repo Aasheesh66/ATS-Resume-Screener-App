@@ -4,6 +4,7 @@
 
 substitutions:
   _REGION: "us-central1"  # override with your region when triggering
+  _SECRET_NAME: ""         # optional: name of Secret Manager secret to map to GOOGLE_API_KEY
 
 steps:
   - name: 'gcr.io/cloud-builders/docker'
@@ -18,15 +19,23 @@ steps:
       - '-c'
       - |
         set -e
-        # Deploy to Cloud Run (managed)
+        # If _SECRET_NAME is provided, prepare the --update-secrets argument so Cloud Run will mount it
+        if [ -n "${_SECRET_NAME}" ]; then
+          SECRET_ARG="--update-secrets=GOOGLE_API_KEY=projects/$PROJECT_ID/secrets/${_SECRET_NAME}:latest"
+        else
+          SECRET_ARG=""
+        fi
+
+        # Deploy to Cloud Run (managed). PORT env var is set to 8080 for Streamlit runtime.
         gcloud run deploy ats-streamlit \
           --image gcr.io/$PROJECT_ID/ats-streamlit:$SHORT_SHA \
           --region ${_REGION} \
           --platform managed \
           --allow-unauthenticated \
+          ${SECRET_ARG} \
           --set-env-vars=PORT=8080
 
 images:
   - 'gcr.io/$PROJECT_ID/ats-streamlit:$SHORT_SHA'
 
-# Optionally configure timeouts, substitutions, and secret manager integration when running builds.
+# Note: For production, integrate Secret Manager and grant Cloud Build (or deployment SA) proper access.
