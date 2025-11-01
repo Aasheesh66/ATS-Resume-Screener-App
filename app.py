@@ -3,20 +3,49 @@ import pdf2image
 import io
 import json
 import base64
+import os
 import google.generativeai as genai
 
-genai.configure(api_key=st.secrets.GOOGLE_API_KEY)
-model = genai.GenerativeModel('gemini-2.0-flash')
+# Resolve API key from Streamlit secrets or environment (Cloud Run will provide env vars)
+API_KEY = None
+try:
+    # st.secrets behaves like a dict; use get to avoid KeyError
+    API_KEY = st.secrets.get("GOOGLE_API_KEY")
+except Exception:
+    API_KEY = None
+
+if not API_KEY:
+    API_KEY = os.getenv("GOOGLE_API_KEY")
+
+if not API_KEY:
+    # Inform user / operator that the key is missing. The app can still load, but Gemini calls will fail.
+    st.warning(
+        "Google API key not found. Set `GOOGLE_API_KEY` in Streamlit secrets or pass it as an environment variable in your Cloud Run service. "
+        "Without this key, AI features will not work."
+    )
+else:
+    genai.configure(api_key=API_KEY)
+
+# Only create the model if we have a configured API key
+model = genai.GenerativeModel('gemini-2.0-flash') if API_KEY else None
 # Define cached functions
 @st.cache_data()
 def get_gemini_response(input, pdf_content, prompt):
+    if model is None:
+        return "ERROR: Google API key not configured. Cannot call Gemini API."
     response = model.generate_content([input, pdf_content[0], prompt])
     return response.text
 
 @st.cache_data()
 def get_gemini_response_keywords(input, pdf_content, prompt):
+    if model is None:
+        return None
     response = model.generate_content([input, pdf_content[0], prompt])
-    return json.loads(response.text[8:-4])
+    # The original code sliced response.text; keep that behavior but guard parsing
+    try:
+        return json.loads(response.text[8:-4])
+    except Exception:
+        return None
 
 @st.cache_data()
 def input_pdf_setup(uploaded_file):
