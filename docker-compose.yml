@@ -3,7 +3,7 @@
 # - Exposes Streamlit on port 8501
 # - Loads environment variables from .env (copy from .env.example)
 
-version: "3.8"
+version: "3.3"
 
 services:
   ats-app:
